@@ -22,26 +22,33 @@ func Init() {
 	if err != nil {
 		panic(err)
 	}
-
+	defer func(handler *sql.DB) {
+		err := handler.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(handler)
 }
 
 func execSql(username, password, host, proto, dbname string) error {
 	var err error
 	handler, err = sql.Open("mysql", username+":"+password+"@"+proto+"("+host+")/"+dbname)
 	if err != nil {
+		panic(err)
 		return err
 	}
-	defer handler.Close()
 	handler.SetMaxOpenConns(64)
 	handler.SetMaxIdleConns(64)
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	res, err := handler.QueryContext(ctx, "SELECT uuid,username,hash,salt,registered,lastLoggedIn FROM pokeroguedb.accounts t LIMIT 501")
+	tx, err := handler.Begin()
 	if err != nil {
+		panic(err)
 		return err
 	}
-	defer res.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	res, err := tx.QueryContext(ctx, "SELECT uuid,username,hash,salt,registered,lastLoggedIn FROM pokeroguedb.accounts t LIMIT 501")
 	if err != nil {
+		panic(err)
 		return err
 	}
 
@@ -56,6 +63,11 @@ func execSql(username, password, host, proto, dbname string) error {
 		if err != nil {
 			panic(err)
 		}
+
+		if err != nil {
+			panic(err)
+			return err
+		}
 		fmt.Println("UUID:", uuid)
 		fmt.Println("Username:", username)
 		fmt.Println("Hash:", hash)
@@ -63,6 +75,7 @@ func execSql(username, password, host, proto, dbname string) error {
 		fmt.Println("Registered:", registered)
 		fmt.Println("LastLoggedIn:", lastLoggedIn)
 	}
+	err = tx.Commit()
 
 	return res.Err()
 }
